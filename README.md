@@ -1,4 +1,4 @@
-# WRECKED v3.0.0 Documentation
+# WRECKED
 WRECKED is the Working Development Environment Creation Kit Enabling Debugging. It is designed for coding on school 
 chromebooks and other uses. To use it, first select the folder containing your code. Enter in the file path of the 
 file you want to run in the text box. Then, click the button, which will open your program in a new tab. Your program 
