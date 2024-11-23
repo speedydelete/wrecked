@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <script data-wrecked-no-grab="true">
+
+const wrecked =  {
+    scripts: [],
+    interceptScript: function(script) {
+        if (script.tagName && script.tagName == 'SCRIPT' && !script.getAttribute('data-wrecked-no-grab')) {
+            script.setAttribute('data-wrecked-no-grab', 'true');
+            script.setAttribute('type', 'text/plain');
+            let code;
+            if (script.src && script.src !== '<anonymous code>') {
+                fetch(script.src).then(function(resp) {
+                    if (resp.ok) {
+                        resp.text().then((text) => this.scripts.push({src: script.src, data: text}));
+                    } else {
+                        console.error(`Unable to fetch script from ${script.src} due to a ${resp.status} ${resp.statusText} `);
+                    }
+                });
+            } else {
+                this.scripts.push({data: script.textContent});
+            }
+        }
+    },
+    observer: function(mutations) {
+        for (const mutation of mutations) {
+            for (const node of mutation.addedNodes) {
+                this.interceptScript(node);
+            }
+        }
+    },
+    onload: function() {
+        console.log('Intercepted scripts:', this.scripts);
+    },
+    init: function() {
+        document.querySelectorAll('script').forEach(this.interceptScript);
+        new MutationObserver(this.observer.bind(this)).observe(document.documentElement, {childList: true, subtree: true});
+        window.addEventListener('load', this.onload.bind(this));
+    }
+}
+
+wrecked.init();
+
+        </script>
+    </head>
+    <body>
+        <script type="importmap">
+            {
+                "imports": {
+                    "test": "data:text/javascript,export default console.log;"
+                }
+            }
+        </script>
+        <script src="thisdoesntexist.js"></script>
+        <script type="module">
+
+import test from 'test';
+
+test('hi');
+
+        </script>
+    </body>
+</html>
