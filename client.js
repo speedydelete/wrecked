@@ -1,1 +1,0 @@
-/* Copyright (c) 2024 speedydelete. Licensed under the MIT license (https://github.com/speedydelete/wrecked/blob/main/LICENSE) */
