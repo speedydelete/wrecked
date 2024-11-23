@@ -306,16 +306,13 @@ body > div:first-child {
 
 // onerror=(a,b,c,d,e)=>{if(document.readyState=='complete'){document.body.innerHTML=`<pre style="font-size:14px;color:red;padding-left:15px;"></pre>`;document.querySelector('body pre').innerText=e.stack.toString();}else{alert(e.stack.toString());};i=setInterval(()=>{},0);for(let j=1;j<=i;j++){clearInterval(j);}};onunhandledrejection=(e)=>{onerror(null,null,null,null,e.reason);};
 
+const { showDirectoryPicker } = await import('https://github.com/speedydelete/wrecked/blob/main/showdirectorypicker_polyfill.js?raw=true');
+
 let folder = null;
 
 document.getElementById('select-folder').addEventListener('click', async function() {
     let folder;
-    if ('showDirectoryPicker' in window) {
-        folder = await window.showDirectoryPicker({id: 'wrecked', mode: 'readwrite'});
-    } else {
-        const { showDirectoryPicker } = await import('https://cdn.jsdelivr.net/npm/file-system-access/lib/showDirectoryPicker.js');
-        folder = await showDirectoryPicker({id: 'wrecked', mode: 'readwrite'});
-    }
+    folder = await showDirectoryPicker({id: 'wrecked', mode: 'readwrite'});
     document.getElementById('no-folder-selected').style.display = 'none';
 });
 
