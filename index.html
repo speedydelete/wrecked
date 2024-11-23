@@ -311,8 +311,7 @@ const { showDirectoryPicker } = await import('https://github.com/speedydelete/wr
 let folder = null;
 
 document.getElementById('select-folder').addEventListener('click', async function() {
-    let folder;
-    folder = await showDirectoryPicker({id: 'wrecked', mode: 'readwrite'});
+    let folder = await showDirectoryPicker({id: 'wrecked', mode: 'readwrite'});
     document.getElementById('no-folder-selected').style.display = 'none';
 });
 
