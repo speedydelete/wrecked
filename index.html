@@ -84,8 +84,8 @@ body > div:first-child {
 #top-left-bar {
     display: flex;
     flex-direction: row;
-    justify-content: space-between;
     align-items: center;
+    gap: 20px;
 }
 
 #no-folder-selected {
@@ -294,9 +294,22 @@ body > div:first-child {
         <div>
 
         </div>
-        <script>
+        <script type="module">
 
 // onerror=(a,b,c,d,e)=>{if(document.readyState=='complete'){document.body.innerHTML=`<pre style="font-size:14px;color:red;padding-left:15px;"></pre>`;document.querySelector('body pre').innerText=e.stack.toString();}else{alert(e.stack.toString());};i=setInterval(()=>{},0);for(let j=1;j<=i;j++){clearInterval(j);}};onunhandledrejection=(e)=>{onerror(null,null,null,null,e.reason);};
+
+let folder = null;
+
+document.getElementById('select-folder').addEventListener('click', async function() {
+    let folder;
+    if ('showDirectoryPicker' in window) {
+        folder = await window.showDirectoryPicker({mode: 'readwrite'});
+    } else {
+        const { showDirectoryPicker } = await import('https://cdn.jsdelivr.net/npm/file-system-access/lib/showDirectoryPicker.js');
+        folder = await showDirectoryPicker();
+    }
+    document.getElementById('no-folder-selected').style.display = 'none';
+});
 
 let packages = {
     npm: null,
