@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <!--
+            Copyright (c) 2024 speedydelete
+
+            Permission is hereby granted, free of charge, to any person obtaining a copy 
+            of this software and associated documentation files (the “Software”), to deal 
+            in the Software without restriction, including without limitation the rights 
+            to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies 
+            of the Software, and to permit persons to whom the Software is furnished to do 
+            so, subject to the following conditions:
+
+            The above copyright notice and this permission notice shall be included in all 
+            copies or substantial portions of the Software.
+
+            THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, 
+            INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A 
+            PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT 
+            HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION 
+            OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
+            SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+        -->
+        <title>WRECKED v3.0.0 Server</title>
+        <style>
+
+* {
+    box-sizing: border-box;
+    user-select: none;
+}
+
+html {
+    height: 100%;
+}
+
+body {
+    height: 100%;
+    margin: 0;
+    display: flex;
+    flex-direction: row;
+    font-size: 14px;
+    font-family: Arial, Helvetica, sans-serif;
+    background-color: #1f1f1f;
+    color: #cccccc;
+}
+
+button {
+    padding: 2px 5px;
+    font-size: 14px;
+    background-color: #0078d4;
+    color: #ffffff;
+    border: 1px solid #ffffff12;
+}
+
+button:hover {
+    background-color: #026ec1;
+}
+
+input {
+    font-size: 12px;
+    font-family: Consolas, 'Courier New', Courier, monospace;
+    background-color: #313131;
+    color: #cccccc;
+    border: 1px solid #3c3c3c;
+    user-select: auto;
+}
+
+input[type=text]:focus {
+    outline: none;
+    border: 1px solid #0078d4;
+}
+
+input[type=checkbox] {
+    appearance: none;
+    height: 16px;
+    width: 16px;
+}
+
+input:checked {
+    border: 1px solid #cccccc;
+    /*background-image: url("data:image/svg;utf8,<svg width='24px' height='24px' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><path fill-rule='evenodd' clip-rule='evenodd' d='M9.9647 14.9617L17.4693 7.44735L18.5307 8.50732L9.96538 17.0837L5.46967 12.588L6.53033 11.5273L9.9647 14.9617Z' fill='#cccccc'/></svg>");*/
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' version='1.1' preserveAspectRatio='none' viewBox='0 0 16 16'><line x1='2' y1='9' x2='6' y2='13' stroke='white' /><line x1='6' y1='13' x2='14' y2='3' stroke='white' /></svg>");
+}
+
+body > div {
+    height: 100%;
+    width: 50%;
+    display: flex;
+    flex-direction: column;
+}
+
+body > div:first-child {
+    border-right: 1px solid #2b2b2b;
+}
+
+#left-persistent {
+    margin-bottom: 16px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+#top-left-bar {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#no-folder-selected {
+    color: red;
+}
+
+#path {
+    width: calc(100% - 15ch);
+}
+
+#tab-bar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    background-color: #181818;
+    border-top: 1px solid #2b2b2b;
+}
+
+.tab {
+    padding: 6px 7px;
+    background-color: #181818;
+    color: #9d9d9d;
+    border-right: 1px solid #2b2b2b;
+}
+
+.tab:hover {
+    background-color: #1f1f1f;
+}
+
+.tab-content {
+    padding: 15px;
+    border-top: 1px solid #2b2b2b;
+}
+
+.selected-tab {
+    background-color: #222222;
+    color: #ffffff;
+    border-top: 1px solid #0078d4;
+}
+
+.tab-content {
+    display: flex;
+    flex-direction: column;
+}
+
+#docs {
+    color: #ffffff;
+}
+
+#docs h1 {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+#docs h2 {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+#client {
+    font-family: Consolas, 'Courier New', Courier, monospace;
+    overflow-wrap: anywhere;
+    overflow-y: scroll;
+}
+
+.tab-content[name=modules] {
+    gap: 10px;
+}
+
+.modules {
+    width: 200px;
+    min-width: 200px;
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    font-family: Consolas, 'Courier New', Courier, monospace;
+}
+
+.modules > div {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.modules > div > * {
+    display: block;
+    height: 20px;
+}
+
+.modules button {
+    margin-left: auto;
+    padding: 0 4px;
+    font-size: 16px;
+    background-color: #313131;
+    color: #cccccc;
+}
+
+.modules button:hover {
+    background-color: #3c3c3c;
+}
+
+#module-npm-new, #module-npm-new-x, #module-pypy-new, #module-pypy-new-x {
+    display: none;
+}
+
+.setting > div:first-child {
+    color: #ffffff;
+    font-weight: bold;
+    margin-bottom: 5px; 
+}
+
+.setting input {
+    vertical-align: middle;
+}
+
+.setting > div:first-child + div, .setting input + div {
+    display: inline;
+    vertical-align: middle;
+    color: #cccccc;
+}
+
+        </style>
+    </head>
+    <body>
+        <div>
+            <div id="left-persistent">
+                <div id="top-left-bar">
+                    <button id="run">Run file</button>
+                    <button id="select-folder">Select folder</button>
+                    <span id="no-folder-selected">No folder selected! WRECKED won't work until you select a folder.</span>
+                </div>
+                <div>File path to run: <input type="text" id="path"></div>
+            </div>
+            <div id="tab-bar">
+                <div class="tab" for="modules" selected>Modules</div>
+                <div class="tab" for="docs">Documentation</div>
+                <div class="tab" for="client">Client code</div>
+                <div class="tab" for="settings">Settings</div>
+            </div>
+            <div class="tab-content" name="modules">
+                <div>Installed NPM modules:</div>
+                <div class="modules">
+                    <div>
+                        <div id="module-npm-0">react</div>
+                        <div id="module-npm-1">react-dom</div>
+                        <input type="text" id="module-npm-new" size="30">
+                    </div>
+                    <div>
+                        <button id="module-npm-0-x">&#xd7;</button>
+                        <button id="module-npm-1-x">&#xd7;</button>
+                        <button id="module-npm-new-x">&#xd7;</button>
+                    </div>
+                </div>
+                <div><button id="install-npm-module">Install module</button></div>
+                <br>
+                <br>
+                <div>Installed PyPy modules:</div>
+                <div class="modules">
+                    <div>
+                        <div id="module-pypy-0">numpy</div>
+                        <input type="text" id="module-pypy-new" size="30">
+                    </div>
+                    <div>
+                        <button id="module-pypy-0-x">&#xd7;</button>
+                        <button id="module-pypy-new-x">&#xd7;</button>
+                    </div>
+                </div>
+                <div><button id="install-pypy-module">Install module</button></div>
+            </div>
+            <div class="tab-content" name="docs">
+                <h1>WRECKED v3.0.0 Documentation</h1>
+                WRECKED is the Working Development Environment Creation Kit Enabling Debugging. It is designed for coding on school 
+                chromebooks and other uses. To use it, first select the folder containing your code. Enter in the file path of the 
+                file you want to run in the text box. Then, click the button, which will open your program in a new tab. Your program 
+                MUST include the WRECKED client, which is available in the "Client code" tab.
+                <h2>Errors</h2>
+                If the console is unavailable for you to see the errors in, please check the "On-screen errors" setting. This will 
+                make WRECKED show the errors on the screen when they occur.
+                <h2>Language Support</h2>
+                You can put code in these languages in script tags or standalone, and it will run them:
+                <ul>
+                    <li>JavaScript: Use type="text/javascript" (or no type at all, it's the default)</li>
+                    <li>TypeScript: Use type="text/typescript"</li>
+                    <li>JavaScript JSX: Use type="text/jsx"</li>
+                    <li>TypeScript JSX: Ues type="text/tsx"</li>
+                    <li>Python: Use type="text/python"</li>
+                </ul>
+                <h2>Imports</h2>
+                You can import modules normally, WRECKED does some tricks to make this work. JavaScript import maps work.
+                <h2>Installing Modules</h2>
+                WRECKED can install modules from NPM and PyPy. On the right is a menu to select installable modules. Some modules 
+                may not work or have limited functionality due to WRECKED running in a browser. Installed modules are only installed
+                in the current folder.
+                <h2>WRECKED API</h2>
+                The WRECKED client offers a rich API.
+            </div>
+            <div class="tab-content" name="client"></div>
+            <div class="tab-content" name="settings">
+                <div class="setting">
+                    <div>On-screen errors</div>
+                    <input type="checkbox" id="setting-onscreen-errors">
+                    <div>Enables showing errors on-screen (use this when the console isn't available)</div>
+                </div>
+            </div>
+        </div>
+        <div>
+
+        </div>
+        <script>
+
+onerror=(a,b,c,d,e)=>{if(document.readyState=='complete'){document.body.innerHTML=`<pre style="font-size:14px;color:red;padding-left:15px;"></pre>`;document.querySelector('body pre').innerText=e.stack.toString();}else{alert(e.stack.toString());};i=setInterval(()=>{},0);for(let j=1;j<=i;j++){clearInterval(j);}};onunhandledrejection=(e)=>{onerror(null,null,null,null,e.reason);};
+
+let packages = {
+    npm: null,
+    pypy: null,
+};
+
+let tabs = [];
+
+function setupTabs() {
+    for (const tab of document.querySelectorAll('.tab')) {
+        const content = document.querySelector(`.tab-content[name=${tab.getAttribute('for')}]`);
+        tabs.push([tab, content]);
+        tab.addEventListener('click', function() {
+            for (const otherTab of tabs) {
+                otherTab[1].style.display = 'none';
+                otherTab[0].classList.remove('selected-tab');
+            }
+            content.style.display = 'flex';
+            tab.classList.add('selected-tab');
+        });
+        if (tab.getAttribute('selected') === null) {
+            content.style.display = 'none';
+        } else {
+            tab.classList.add('selected-tab');
+        }
+    }
+}
+
+function saveSettings() {
+    localStorage.setItem('wrecked3-settings', JSON.stringify({
+        onscreenErrors: document.getElementById('setting-onscreen-errors').checked,
+    }));
+}
+
+function setupSettings() {
+    if ('wrecked3-settings' in localStorage) {
+        const settings = JSON.parse(localStorage.getItem('wrecked3-settings'));
+        document.getElementById('setting-onscreen-errors').checked = settings.onscreenErrors;
+    }
+    document.querySelectorAll('.setting input').forEach(function(elt) {
+        elt.addEventListener('change', saveSettings);
+    });
+}
+
+window.addEventListener('load', function() {
+    setupTabs();
+    setupSettings();
+});
+
+onbeforeunload = function() {
+    return 'Changes you made may not be saved.';
+}
+
+        </script>
+    </body>
+</html>
