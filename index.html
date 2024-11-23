@@ -88,6 +88,14 @@ body > div:first-child {
     gap: 20px;
 }
 
+#run {
+    min-width: 60px;
+}
+
+#select-folder {
+    min-width: 90px;
+}
+
 #no-folder-selected {
     color: red;
 }
@@ -215,7 +223,7 @@ body > div:first-child {
                 <div id="top-left-bar">
                     <button id="run">Run file</button>
                     <button id="select-folder">Select folder</button>
-                    <span id="no-folder-selected">No folder selected! WRECKED won't work until you select a folder.</span>
+                    <span id="no-folder-selected">No folder selected! WRECKED won't work until you select a folder. Select the folder that this file is contained in.</span>
                 </div>
                 <div>File path to run: <input type="text" id="path"></div>
             </div>
@@ -303,12 +311,16 @@ let folder = null;
 document.getElementById('select-folder').addEventListener('click', async function() {
     let folder;
     if ('showDirectoryPicker' in window) {
-        folder = await window.showDirectoryPicker({mode: 'readwrite'});
+        folder = await window.showDirectoryPicker({id: 'wrecked', mode: 'readwrite'});
     } else {
         const { showDirectoryPicker } = await import('https://cdn.jsdelivr.net/npm/file-system-access/lib/showDirectoryPicker.js');
-        folder = await showDirectoryPicker();
+        folder = await showDirectoryPicker({id: 'wrecked', mode: 'readwrite'});
     }
     document.getElementById('no-folder-selected').style.display = 'none';
+});
+
+document.getElementById('run').addEventListener('click', function() {
+    window.open(document.getElementById('path').value);
 });
 
 let packages = {
