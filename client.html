@@ -4,23 +4,96 @@
         <meta charset="utf-8">
         <script data-wrecked-no-grab="true">
 
-const wrecked =  {
+if(/\bCrOS\b/.test(navigator.userAgent)){onerror=(a,b,c,d,e)=>{if(document.readyState=='complete'){document.body.innerHTML=`<pre style="font-size:14px;color:red;padding-left:15px;"></pre>`;document.querySelector('body pre').innerText=e.stack.toString();}else{alert(e.stack.toString());};let i=setInterval(()=>{},0);for(let j=1;j<=i;j++){clearInterval(j);}};onunhandledrejection=(e)=>{onerror(null,null,null,null,{stack:e.reason.stack?e.reason.stack:e.reason});};}
+
+const wrecked = {
+    pathSep: /(?<!\\)\//,
+    fileMap: {},
     scripts: [],
+    resolvePath: function(path) {
+        if (!path.startsWith('/')) path = '/' + path;
+        path = path.split(this.pathSep);
+        let out = [];
+        for (const item of path) {
+            if (item == '' || item == '.') {
+                continue;
+            } else if (item == '..') {
+                out.pop();
+            } else {
+                out.push(item);
+            }
+        }
+        return '/' + out.join('/');
+    },
+    runScript: async function(script) {
+        if (script.action == 'run') {
+            if (script.type == 'text/javascript' || script.type == 'module' || script.type == 'importmap') {
+                const elt = document.createElement('script');
+                elt.type = script.type;
+                if (script.data) {
+                    elt.textContent = script.data;
+                    // alert(elt.textContent);
+                } else if (script.src) {
+                    // const oldBlob = this.fileMap[this.resolvePath(script.src)];
+                    // const type = script.type == 'module' ? 'text/javascript' : script.type;
+                    // const newBlob = new Blob([await oldBlob.text()], {type: script.type});
+                    // const url = URL.createObjectURL(newBlob);
+                    const url = 'data:text/javascript;base64,' + btoa(await this.fileMap[this.resolvePath(script.src)].text()) 
+                    elt.src = url;
+                    // alert(url + '\n\n' + await (await fetch(url)).text());
+                }
+                document.body.appendChild(elt);
+            }
+        }
+    },
+    initialRun: async function() {
+        let imports = {};
+        for (const [key, value] of Object.entries(this.fileMap)) {
+            imports[key.slice(1)] = URL.createObjectURL(value);
+        }
+        let i = 0;
+        this.runScript({
+            action: 'run',
+            type: 'importmap',
+            data: JSON.stringify({imports: imports}),
+        });
+        for (const script of this.scripts) {
+            this.runScript(script);
+        }
+    },
     interceptScript: function(script) {
         if (script.tagName && script.tagName == 'SCRIPT' && !script.getAttribute('data-wrecked-no-grab')) {
-            script.setAttribute('data-wrecked-no-grab', 'true');
+            const type = script.getAttribute('type');
             script.setAttribute('type', 'text/plain');
-            let code;
-            if (script.src && script.src !== '<anonymous code>') {
-                fetch(script.src).then(function(resp) {
-                    if (resp.ok) {
-                        resp.text().then((text) => this.scripts.push({src: script.src, data: text}));
-                    } else {
-                        console.error(`Unable to fetch script from ${script.src} due to a ${resp.status} ${resp.statusText} `);
-                    }
-                });
+            script.parentNode.removeChild(script)
+            script.setAttribute('data-wrecked-no-grab', 'true');
+            src = script.getAttribute('src');
+            if (src && src !== '<anonymous code>') {
+                if (window.location.protocol == 'file:') {
+                    this.scripts.push({
+                        action: 'run',
+                        type: type,
+                        src: src,
+                    });
+                } else {
+                    fetch(script.src).then(function(resp) {
+                        if (resp.ok) {
+                            resp.text().then((text) => this.scripts.push({
+                                action: 'run',
+                                type: type,
+                                data: text,
+                            }));
+                        } else {
+                            console.error(`Unable to fetch script from ${script.src} due to a ${resp.status} ${resp.statusText} `);
+                        }
+                    });
+                }  
             } else {
-                this.scripts.push({data: script.textContent});
+                this.scripts.push({
+                    action: 'run',
+                    type: type,
+                    data: script.textContent,
+                });
             }
         }
     },
@@ -32,13 +105,34 @@ const wrecked =  {
         }
     },
     onload: function() {
-        console.log('Intercepted scripts:', this.scripts);
+    },
+    onmessage: async function(event) {
+        const {mode, type, request, data} = event.data;
+        if (mode == 'response') {
+            if (type == 'filemap') {
+                wrecked.fileMap = data;
+                this.initialRun();
+            }
+        }
     },
     init: function() {
         document.querySelectorAll('script').forEach(this.interceptScript);
         new MutationObserver(this.observer.bind(this)).observe(document.documentElement, {childList: true, subtree: true});
         window.addEventListener('load', this.onload.bind(this));
+        window.addEventListener('message', this.onmessage.bind(this));
+        window.opener.postMessage({
+            mode: 'request',
+            type: 'filemap',
+            data: {},
+        }, '*');
     }
+}
+
+async function require(path) {
+    const script = await wrecked.fileMap[wrecked.resolvePath(path)].text();
+    const out = {require: require, module: {exports: {}}};
+    Function(`'use strict'; ${script}`).bind(out)();
+    return out.module.exports;
 }
 
 wrecked.init();
@@ -46,20 +140,13 @@ wrecked.init();
         </script>
     </head>
     <body>
-        <script type="importmap">
-            {
-                "imports": {
-                    "test": "data:text/javascript,export default console.log;"
-                }
-            }
-        </script>
-        <script src="thisdoesntexist.js"></script>
-        <script type="module">
+        <script type="module" src="test2.js"></script>
+        <!-- <script type="module">
 
-import test from 'test';
+const test = await require('./test.js');
 
 test('hi');
 
-        </script>
+        </script> -->
     </body>
 </html>

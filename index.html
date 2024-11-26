@@ -93,7 +93,7 @@ body > div:first-child {
 }
 
 #select-folder {
-    min-width: 90px;
+    min-width: 91px;
 }
 
 #no-folder-selected {
@@ -304,19 +304,104 @@ body > div:first-child {
         </div>
         <script type="module">
 
-// onerror=(a,b,c,d,e)=>{if(document.readyState=='complete'){document.body.innerHTML=`<pre style="font-size:14px;color:red;padding-left:15px;"></pre>`;document.querySelector('body pre').innerText=e.stack.toString();}else{alert(e.stack.toString());};i=setInterval(()=>{},0);for(let j=1;j<=i;j++){clearInterval(j);}};onunhandledrejection=(e)=>{onerror(null,null,null,null,e.reason);};
+onerror=(a,b,c,d,e)=>{if(document.readyState=='complete'){document.body.innerHTML=`<pre style="font-size:14px;color:red;padding-left:15px;"></pre>`;document.querySelector('body pre').innerText=e.stack.toString();}else{alert(e.stack.toString());};let i=setInterval(()=>{},0);for(let j=1;j<=i;j++){clearInterval(j);}};onunhandledrejection=(e)=>{onerror(null,null,null,null,{stack:e.reason.stack?e.reason.stack:e.reason});};
 
-const { showDirectoryPicker } = await import('https://unpkg.com/file-system-access@1.0.4/lib/es2018.js');
+// const { showDirectoryPicker } = await import('https://unpkg.com/file-system-access@1.0.4/lib/es2018.js');
+
+const pathSep = /(?<!\\)\//;
 
 let folder = null;
+let currentPath = '/';
+let currentClientPath = null;
+let currentServerPath = location.href.substring(location.href.lastIndexOf('/'));
+let childWindow = null;
+let importMaps = {};
+
+function resolvePath(path) {
+    if (!path.startsWith('/')) path = currentPath + path;
+    path = path.split(pathSep);
+    let out = [];
+    for (const item of path.slice(0, -1)) {
+        if (item == '' || item == '.') {
+            continue;
+        } else if (item == '..') {
+            out.pop();
+        } else {
+            out.push(item);
+        }
+    }
+    return path.join('/');
+}
+
+async function getPathObj(path) {
+    path = resolvePath(path).split(pathSep);
+    let out = [folder];
+    for (const item of path.slice(0, -1)) {
+        if (item == '') continue;
+        out.push(out[out.length - 1].getDirectoryHandle(item));
+    }
+    try {
+        return out[out.length - 1].getFileHandle(path[path.length - 1]);
+    } catch (error) {
+        if (error instanceof TypeError) {
+            return out[out.length - 1].getDirectoryHandle(path[path.length - 1]);
+        } else {
+            throw error;
+        }
+    }
+}
+
+async function createFileMap(path, obj) {
+    if (path === undefined) path = '';
+    if (obj === undefined) obj = folder;
+    let map = {};
+    for await (const [key, value] of obj.entries()) {
+        if (value instanceof FileSystemDirectoryHandle) {
+            map = {...map, ...createFileMap(path + key + '/', obj)};
+        } else {
+            const resolved = resolvePath(path + key);
+            if (!(resolved == currentServerPath || resolved == currentClientPath)) {
+                map[resolved] = await value.getFile();
+            }
+        }
+    }
+    return map;
+}
+
+window.addEventListener('message', async function(event) {
+    const {mode, type, data} = event.data;
+    if (mode == 'request') { 
+        if (type == 'filemap') {
+            event.source.postMessage({
+                mode: 'response',
+                type: 'filemap',
+                request: data,
+                data: await createFileMap(),
+            }, '*');
+        }
+    }
+});
 
 document.getElementById('select-folder').addEventListener('click', async function() {
-    let folder = await showDirectoryPicker({id: 'wrecked', mode: 'readwrite'});
+    folder = await showDirectoryPicker({id: 'wrecked', mode: 'readwrite'});
     document.getElementById('no-folder-selected').style.display = 'none';
 });
 
+const pathInput = document.getElementById('path');
+
 document.getElementById('run').addEventListener('click', function() {
-    window.open(document.getElementById('path').value);
+    if (childWindow) childWindow.close();
+    childWindow = window.open(pathInput.value);
+    currentClientPath = '/' + pathInput.value;
+    if (pathSep.test(pathInput.value)) {
+        currentPath = '/' + pathInput.value.split(pathSep).slice(0, -1).join('/') + '/';
+    } else {
+        currentPath = '/';
+    }
+});
+
+document.getElementById('path').addEventListener('change', function() {
+    localStorage.setItem('wrecked3-path', pathInput.value);
 });
 
 let packages = {
@@ -363,6 +448,8 @@ function setupSettings() {
 }
 
 window.addEventListener('load', function() {
+    const path = localStorage.getItem('wrecked3-path');
+    if (path) pathInput.value = path;
     setupTabs();
     setupSettings();
 });
