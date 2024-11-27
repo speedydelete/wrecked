@@ -67,7 +67,7 @@
                 code = code.replace(match[0], match[1] + '"' + specifier + '"; // wrecked-no-grab=true\n');
                 match = importRegex.exec(code);
             }
-            return new Response(code, {'status': 200, 'statusText': 'OK'});
+            return new Response(code, {status: 200, statusText: 'OK'});
         }
     }
 
