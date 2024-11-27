@@ -1,11 +1,9 @@
-<!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="utf-8">
-        <script data-wrecked-no-grab="true">
+
 // wrecked-no-grab=true
 
-if (/\bCrOS\b/.test(navigator.userAgent)) {
+const showErrorsOnScreen = false;
+
+if (showErrorsOnScreen) {
     onerror = function(a, b, c, d, error) {
         let text = error.stack.toString()
         text = text.replace(/data:([a-zA-Z0-9!#$&.+-^_]+\/[a-zA-Z0-9!#$&.+-^_]+)?(;[a-zA-Z0-9!#$&.+-^_]+)*;base64,[A-Za-z0-9+/]+={0,2}/g, '<data uri>');
@@ -138,6 +136,7 @@ const wrecked = {
                     });
                 }  
             } else {
+                if (!(/^\s+\/\/[^\n]*wrecked-no-grab=true/.test(script.textContent))) return;
                 this.scripts.push({
                     action: 'run',
                     type: type,
@@ -192,9 +191,3 @@ async function require(path) {
 }
 
 wrecked.init();
-                        
-        </script>
-    </head>
-    <body>
-    </body>
-</html>
