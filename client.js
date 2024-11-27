@@ -1,37 +1,42 @@
 
 // wrecked-no-grab=true
 
-const showErrorsOnScreen = false;
+(function() {
 
-if (showErrorsOnScreen) {
-    onerror = function(a, b, c, d, error) {
-        let text = error.stack.toString()
-        text = text.replace(/data:([a-zA-Z0-9!#$&.+-^_]+\/[a-zA-Z0-9!#$&.+-^_]+)?(;[a-zA-Z0-9!#$&.+-^_]+)*;base64,[A-Za-z0-9+/]+={0,2}/g, '<data uri>');
-        if (document.readyState == 'complete') {
-            document.body.innerHTML = `<pre style="font-size:14px;color:red;padding-left:15px;"></pre>`;
-            document.querySelector('body pre').innerText = text4
-        } else {
-            alert(text);
+    const showErrorsOnScreen = false;
+
+    const dataURIRegex = /data:([a-zA-Z0-9!#$&.+-^_]+\/[a-zA-Z0-9!#$&.+-^_]+)?(;[a-zA-Z0-9!#$&.+-^_]+)*;base64,[A-Za-z0-9+/]+={0,2}/g;
+    const importRegex = /^(?:(import(?:\s+\*\s+as\s+\w+|\s+\w+|\s*\{[^}]*\})\s+from\s+)["']([^"']+)["'];?)(?:\s*)(?!\/\/\s*wrecked-no-grab=true)\n/m;
+    const schemeRegex = /^[a-z][a-z\d+\-.]*:/;
+
+    if (showErrorsOnScreen) {
+        window.onerror = function(a, b, c, d, error) {
+            let text = error.stack.toString()
+            text = text.replace(dataURIRegex, '<data uri>');
+            if (document.readyState == 'complete') {
+                document.body.innerHTML = `<pre style="font-size:14px;color:red;padding-left:15px;"></pre>`;
+                document.querySelector('body pre').innerText = text4
+            } else {
+                alert(text);
+            }
+            let lastInterval = setInterval(()=>{},0);
+            for (let j=1;j<=i;j++) clearInterval(j)
         }
-        let lastInterval = setInterval(()=>{},0);
-        for (let j=1;j<=i;j++) clearInterval(j)
+        window.onunhandledrejection = function(error) {
+            onerror(null, null, null, null, {stack: e.reason.stack ? e.reason.stack : e.reason});
+        }
     }
-    onunhandledrejection = function(error) {
-        onerror(null, null, null, null, {stack: e.reason.stack ? e.reason.stack : e.reason});
-    }
-}
+    
+    const pathSep = /(?<!\\)\//;
+    let fileMap = null;
+    let currentPath = null;
+    let scripts = [];
 
-const wrecked = {
-    pathSep: /(?<!\\)\//,
-    fileMap: null,
-    currentPath: null,
-    scripts: [],
-    importRegex: /^(?:(import(?:\s+\*\s+as\s+\w+|\s+\w+|\s*\{[^}]*\})\s+from\s+)["']([^"']+)["'];?)(?:\s*)(?!\/\/\s*wrecked-no-grab=true)\n/m,
-    simplifyPath: function(...paths) {
+    function simplifyPath(...paths) {
         let out = [];
-        if (!paths[0].startsWith('/')) paths = [this.currentPath].concat(paths);
+        if (!paths[0].startsWith('/')) paths = [currentPath].concat(paths);
         for (const path of paths) {
-            for (const item of path.split(this.pathSep)) {
+            for (const item of path.split(pathSep)) {
                 if (item == '' || item == '.') {
                     continue;
                 } else if (item == '..') {
@@ -42,73 +47,67 @@ const wrecked = {
             }
         }
         return '/' + out.filter((x) => x !== '').join('/');
-    },
-    getURL: async function(url) {
-        if (url.startsWith('http:') || url.startsWith('https:') || url.startsWith('data:')) return url;
-        const path = this.simplifyPath(url);
-        // alert(url + '\n\n' + path);
-        if (typeof this.fileMap[path] == 'string') return this.fileMap[path];
-        // const oldBlob = await this.fileMap[path];
-        // const type = script.type == 'module' ? 'text/javascript' : script.type;
-        // const newBlob = new Blob([await oldBlob.text()], {type: script.type});
-        // return URL.createObjectURL(newBlob);
-        let code = await this.fileMap[path].text();
-        let match = this.importRegex.exec(code);
-        let out = '';
-        while (match) {
-            let [full, main, specifier] = match;
-            if (specifier == 'three') {
-                specifier = 'https://unpkg.com/three@0.170.0/build/three.module.js?module';
-            } else if (specifier.startsWith('three/addons/')) {
-                specifier = 'https://unpkg.com/three@0.170.0/examples/jsm/' + specifier.slice('three/addons/'.length) + '?module';
-            } else {
-                specifier = '_wrecked' + this.simplifyPath(specifier);
-            }
-            code = code.replace(full, main + '"' + specifier + '"; // wrecked-no-grab=true\n');
-            match = this.importRegex.exec(code);
-        }
-        return 'data:text/javascript;base64,' + btoa(code);
-    },
-    runScript: async function(script) {
-        if (script.action == 'run') {
-            if (script.type == 'text/javascript' || script.type == 'module') {
-                const elt = document.createElement('script');
-                elt.type = script.type;
-                if (script.data) {
-                    elt.textContent = script.data;
-                } else if (script.src) {
-                    elt.src = await this.getURL(script.src);
+    }
+
+    if (window.location.protocol == 'file:') {
+        const oldFetch = fetch;
+        window.fetch = async function(url) {
+            if (schemeRegex.test(url)) return await oldFetch(url);
+            const path = simplifyPath(url);
+            if (typeof fileMap[path] == 'string') return fileMap[path];
+            let code = await fileMap[path].text();
+            let match = importRegex.exec(code);
+            while (match) {
+                let [full, main, specifier] = match;
+                if (specifier == 'three') {
+                    specifier = 'https://unpkg.com/three@0.170.0/build/three.module.js?module';
+                } else if (specifier.startsWith('three/addons/')) {
+                    specifier = 'https://unpkg.com/three@0.170.0/examples/jsm/' + specifier.slice('three/addons/'.length) + '?module';
+                } else {
+                    specifier = '_wrecked' + simplifyPath(specifier);
                 }
-                elt.setAttribute('data-wrecked-no-grab', 'true');
-                document.body.appendChild(elt);
-            } else if (script.type == 'importmap') {
-                const map = JSON.parse(script.data);
-                let imports = [];
-                for (const [key, value] of Object.entries(map.imports)) {
-                    imports.push([key, await this.getURL(value)]);
-                }
-                map.imports = Object.fromEntries(imports);
-                const elt = document.createElement('script');
-                elt.textContent = JSON.stringify(map);
-                elt.setAttribute('data-wrecked-no-grab', 'true');
-                elt.type = 'importmap';
-                // alert(elt.textContent);
-                document.body.appendChild(elt);
+                code = code.replace(full, main + '"' + specifier + '"; // wrecked-no-grab=true\n');
+                match = importRegex.exec(code);
             }
+            return new Response(code, {'status': 200, 'statusText': 'OK'});
         }
-    },
-    initialRun: async function() {
+    }
+
+    async function runScript(script) {
+        const {type, src} = script;
+        let {data} = script;
+        if (data == undefined) {
+            if (!src) return;
+            data = await fetch(src);
+        }
+        if (type == 'importmap') {
+            const map = JSON.parse(data);
+            let imports = [];
+            for (const [key, value] of Object.entries(map.imports)) {
+                imports.push([key, await getURL(value)]);
+            }
+            map.imports = Object.fromEntries(imports);
+            data = JSON.stringify(map);
+        }
+        const elt = document.createElement('script');
+        elt.textContent = data;
+        elt.setAttribute('data-wrecked-no-grab', 'true');
+        elt.type = type;
+        document.body.appendChild(elt);
+    }
+
+    async function initialRun() {
         let i = 0;
-        await this.runScript({
-            action: 'run',
+        await runScript({
             type: 'importmap',
-            data: JSON.stringify({imports: Object.fromEntries(Object.keys(this.fileMap).map((k) => ['_wrecked' + k, k]))}),
+            data: JSON.stringify({imports: Object.fromEntries(Object.keys(fileMap).map((k) => ['_wrecked' + k, k]))}),
         });
-        for (const script of this.scripts) {
-            await this.runScript(script);
+        for (const script of scripts) {
+            await runScript(script);
         }
-    },
-    interceptScript: function(script) {
+    }
+
+    function interceptScript(script) {
         if (script.tagName && script.tagName == 'SCRIPT' && !script.getAttribute('data-wrecked-no-grab')) {
             const type = script.getAttribute('type');
             script.setAttribute('type', 'text/plain');
@@ -117,16 +116,14 @@ const wrecked = {
             src = script.getAttribute('src');
             if (src && src !== '<anonymous code>') {
                 if (window.location.protocol == 'file:') {
-                    this.scripts.push({
-                        action: 'run',
+                    scripts.push({
                         type: type,
                         src: src,
                     });
                 } else {
                     fetch(script.src).then(function(resp) {
                         if (resp.ok) {
-                            resp.text().then((text) => this.scripts.push({
-                                action: 'run',
+                            resp.text().then((text) => scripts.push({
                                 type: type,
                                 data: text,
                             }));
@@ -137,41 +134,38 @@ const wrecked = {
                 }  
             } else {
                 if (!(/^\s+\/\/[^\n]*wrecked-no-grab=true/.test(script.textContent))) return;
-                this.scripts.push({
-                    action: 'run',
+                scripts.push({
                     type: type,
                     data: script.textContent,
                 });
             }
         }
-    },
-    observer: function(mutations) {
+    }
+    
+    document.querySelectorAll('script').forEach(interceptScript);
+    
+    new MutationObserver(function(mutations) {
         for (const mutation of mutations) {
             for (const node of mutation.addedNodes) {
-                this.interceptScript(node);
+                interceptScript(node);
             }
         }
-    },
-    onload: function() {
-    },
-    onmessage: async function(event) {
-        const {mode, type, request, data} = event.data;
-        if (mode == 'response') {
-            if (type == 'filemap') {
-                // alert(`${Object.values(data).reduce((a, b) => a + b.size, 0)} bytes\n${JSON.stringify(data)}`);
-                wrecked.fileMap = data;
-                if (this.currentPath !== null) this.initialRun();
-            } else if (type == 'currentpath') {
-                wrecked.currentPath = data;
-                if (this.fileMap !== null) this.initialRun();
+    }).observe(document.documentElement, {childList: true, subtree: true});
+
+    if (window.opener) {
+        window.addEventListener('message', async function(event) {
+            const {mode, type, request, data} = event.data;
+            if (mode == 'response') {
+                if (type == 'filemap') {
+                    // alert(`${Object.values(data).reduce((a, b) => a + b.size, 0)} bytes\n${JSON.stringify(data)}`);
+                    fileMap = data;
+                    if (currentPath !== null) initialRun();
+                } else if (type == 'currentpath') {
+                    currentPath = data;
+                    if (fileMap !== null) initialRun();
+                }
             }
-        }
-    },
-    init: function() {
-        document.querySelectorAll('script').forEach(this.interceptScript);
-        new MutationObserver(this.observer.bind(this)).observe(document.documentElement, {childList: true, subtree: true});
-        window.addEventListener('load', this.onload.bind(this));
-        window.addEventListener('message', this.onmessage.bind(this));
+        });
         window.opener.postMessage({
             mode: 'request',
             type: 'filemap',
@@ -181,13 +175,11 @@ const wrecked = {
             type: 'currentpath',
         }, '*');
     }
-}
-
-async function require(path) {
-    const script = await wrecked.fileMap[wrecked.resolvePath(path)].text();
-    const out = {require: require, module: {exports: {}}};
-    Function(`'use strict'; ${script}`).bind(out)();
-    return out.module.exports;
-}
-
-wrecked.init();
+    
+    window.require = async function(path) {
+        const script = await fileMap[resolvePath(path)].text();
+        const out = {require: require, module: {exports: {}}};
+        Function(`'use strict'; ${script}`).bind(out)();
+        return out.module.exports;
+    }
+})
