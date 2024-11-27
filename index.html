@@ -223,9 +223,10 @@ body > div:first-child {
                 <div id="top-left-bar">
                     <button id="run">Run file</button>
                     <button id="select-folder">Select folder</button>
-                    <span id="no-folder-selected">No folder selected! WRECKED won't work until you select a folder. Select the folder that this file is contained in.</span>
+                    <span id="no-folder-selected">No folder selected! WRECKED won't work until you select a folder.</span>
                 </div>
                 <div>File path to run: <input type="text" id="path"></div>
+                <div>Relative path to folder: <input type="text" id="folder-path" value="/"></div>
             </div>
             <div id="tab-bar">
                 <div class="tab" for="modules" selected>Modules</div>
@@ -315,29 +316,31 @@ let currentPath = '/';
 let currentClientPath = null;
 let currentServerPath = location.href.substring(location.href.lastIndexOf('/'));
 let childWindow = null;
-let importMaps = {};
 
-function resolvePath(path) {
-    if (!path.startsWith('/')) path = currentPath + path;
-    path = path.split(pathSep);
+function simplifyPath(...paths) {
     let out = [];
-    for (const item of path.slice(0, -1)) {
-        if (item == '' || item == '.') {
-            continue;
-        } else if (item == '..') {
-            out.pop();
-        } else {
-            out.push(item);
+    if (paths[0].startsWith('/')) out.push('');
+    else paths = [currentPath].concat(paths);
+    for (const path of paths) {
+        for (const item of path.split(pathSep)) {
+            if (item == '' || item == '.') {
+                continue;
+            } else if (item == '..') {
+                out.pop();
+            } else {
+                out.push(item);
+            }
         }
     }
-    return path.join('/');
+    out = '/' + out.join('/');
+    while (out.includes('//')) out = out.replace('//', '/');
+    return out;
 }
 
 async function getPathObj(path) {
-    path = resolvePath(path).split(pathSep);
+    path = simplifyPath(currentPath, path).split(pathSep);
     let out = [folder];
-    for (const item of path.slice(0, -1)) {
-        if (item == '') continue;
+    for (const item of path.slice(1, -1)) {
         out.push(out[out.length - 1].getDirectoryHandle(item));
     }
     try {
@@ -347,19 +350,20 @@ async function getPathObj(path) {
             return out[out.length - 1].getDirectoryHandle(path[path.length - 1]);
         } else {
             throw error;
+
         }
     }
 }
 
-async function createFileMap(path, obj) {
-    if (path === undefined) path = '';
+async function createFileMap(path, obj, recursive = false) {
+    if (path === undefined) path = '/';
     if (obj === undefined) obj = folder;
     let map = {};
     for await (const [key, value] of obj.entries()) {
         if (value instanceof FileSystemDirectoryHandle) {
-            map = {...map, ...createFileMap(path + key + '/', obj)};
+            map = {...map, ...createFileMap(path + key + '/', obj, true)};
         } else {
-            const resolved = resolvePath(path + key);
+            const resolved = simplifyPath(path, key);
             if (!(resolved == currentServerPath || resolved == currentClientPath)) {
                 map[resolved] = await value.getFile();
             }
@@ -378,6 +382,13 @@ window.addEventListener('message', async function(event) {
                 request: data,
                 data: await createFileMap(),
             }, '*');
+        } else if (type == 'currentpath') {
+            event.source.postMessage({
+                mode: 'response',
+                type: 'currentpath',
+                request: data,
+                data: currentClientPath.split(pathSep).slice(0, -1).join('/'),
+            }, '*');
         }
     }
 });
@@ -388,10 +399,11 @@ document.getElementById('select-folder').addEventListener('click', async functio
 });
 
 const pathInput = document.getElementById('path');
+const folderPathInput = document.getElementById('folder-path');
 
 document.getElementById('run').addEventListener('click', function() {
     if (childWindow) childWindow.close();
-    childWindow = window.open(pathInput.value);
+    childWindow = window.open(simplifyPath('/', folderPathInput.value, pathInput.value).slice(1));
     currentClientPath = '/' + pathInput.value;
     if (pathSep.test(pathInput.value)) {
         currentPath = '/' + pathInput.value.split(pathSep).slice(0, -1).join('/') + '/';
@@ -402,6 +414,10 @@ document.getElementById('run').addEventListener('click', function() {
 
 document.getElementById('path').addEventListener('change', function() {
     localStorage.setItem('wrecked3-path', pathInput.value);
+});
+
+document.getElementById('folder-path').addEventListener('change', function() {
+    localStorage.setItem('wrecked3-folder-path', folderPathInput.value);
 });
 
 let packages = {
@@ -450,11 +466,14 @@ function setupSettings() {
 window.addEventListener('load', function() {
     const path = localStorage.getItem('wrecked3-path');
     if (path) pathInput.value = path;
+    const folderPath = localStorage.getItem('wrecked3-folder-path');
+    if (path) folderPathInput.value = folderPath;
     setupTabs();
     setupSettings();
 });
 
 onbeforeunload = function() {
+    if (childWindow) childWindow.close();
     return 'Changes you made may not be saved.';
 }
 

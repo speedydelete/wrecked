@@ -1,64 +1,120 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <meta charset="utf-8">
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Space</title>
+        <style>
+
+body {
+    margin: 0;
+    overflow: hidden;
+}
+
+canvas {
+    display: block;
+}
+
+#debug-info {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 14px;
+    font-family: 'Courier New', Courier, monospace;
+    background-color: transparent;
+    color: white;
+}
+
+        </style>
         <script data-wrecked-no-grab="true">
 
-if(/\bCrOS\b/.test(navigator.userAgent)){onerror=(a,b,c,d,e)=>{if(document.readyState=='complete'){document.body.innerHTML=`<pre style="font-size:14px;color:red;padding-left:15px;"></pre>`;document.querySelector('body pre').innerText=e.stack.toString();}else{alert(e.stack.toString());};let i=setInterval(()=>{},0);for(let j=1;j<=i;j++){clearInterval(j);}};onunhandledrejection=(e)=>{onerror(null,null,null,null,{stack:e.reason.stack?e.reason.stack:e.reason});};}
+if(/\bCrOS\b/.test(navigator.userAgent)){onerror=(a,b,c,d,e)=>{let t=e.stack.toString().replace(/data:([a-zA-Z0-9!#$&.+-^_]+\/[a-zA-Z0-9!#$&.+-^_]+)?(;[a-zA-Z0-9!#$&.+-^_]+)*;base64,[A-Za-z0-9+/]+={0,2}/g, '<data uri>');if(document.readyState=='complete'){document.body.innerHTML=`<pre style="font-size:14px;color:red;padding-left:15px;"></pre>`;document.querySelector('body pre').innerText=t}else{alert(t);};let i=setInterval(()=>{},0);for(let j=1;j<=i;j++){clearInterval(j);}};onunhandledrejection=(e)=>{onerror(null,null,null,null,{stack:e.reason.stack?e.reason.stack:e.reason});};}
 
 const wrecked = {
     pathSep: /(?<!\\)\//,
-    fileMap: {},
+    fileMap: null,
+    currentPath: null,
     scripts: [],
-    resolvePath: function(path) {
-        if (!path.startsWith('/')) path = '/' + path;
-        path = path.split(this.pathSep);
+    importRegex: /^(?:(import(?:\s+\*\s+as\s+\w+|\s+\w+|\s*\{[^}]*\})\s+from\s+)["']([^"']+)["'];?)(?:\s*)(?!\/\/\s*wrecked-no-grab=true)\n/m,
+    simplifyPath: function(...paths) {
         let out = [];
-        for (const item of path) {
-            if (item == '' || item == '.') {
-                continue;
-            } else if (item == '..') {
-                out.pop();
-            } else {
-                out.push(item);
+        if (!paths[0].startsWith('/')) paths = [this.currentPath].concat(paths);
+        for (const path of paths) {
+            for (const item of path.split(this.pathSep)) {
+                if (item == '' || item == '.') {
+                    continue;
+                } else if (item == '..') {
+                    out.pop();
+                } else {
+                    out.push(item);
+                }
             }
         }
-        return '/' + out.join('/');
+        return '/' + out.filter((x) => x !== '').join('/');
+    },
+    getURL: async function(url) {
+        if (url.startsWith('http:') || url.startsWith('https:') || url.startsWith('data:')) return url;
+        const path = this.simplifyPath(url);
+        // alert(url + '\n\n' + path);
+        if (typeof this.fileMap[path] == 'string') return this.fileMap[path];
+        // const oldBlob = await this.fileMap[path];
+        // const type = script.type == 'module' ? 'text/javascript' : script.type;
+        // const newBlob = new Blob([await oldBlob.text()], {type: script.type});
+        // return URL.createObjectURL(newBlob);
+        let code = await this.fileMap[path].text();
+        let match = this.importRegex.exec(code);
+        let out = '';
+        while (match) {
+            let [full, main, specifier] = match;
+            if (specifier == 'three') {
+                specifier = 'https://unpkg.com/three@0.170.0/build/three.module.js?module';
+            } else if (specifier.startsWith('three/addons/')) {
+                specifier = 'https://unpkg.com/three@0.170.0/examples/jsm/' + specifier.slice('three/addons/'.length) + '?module';
+            } else {
+                specifier = '_wrecked' + this.simplifyPath(specifier);
+            }
+            code = code.replace(full, main + '"' + specifier + '"; // wrecked-no-grab=true\n');
+            match = this.importRegex.exec(code);
+        }
+        return 'data:text/javascript;base64,' + btoa(code);
     },
     runScript: async function(script) {
         if (script.action == 'run') {
-            if (script.type == 'text/javascript' || script.type == 'module' || script.type == 'importmap') {
+            if (script.type == 'text/javascript' || script.type == 'module') {
                 const elt = document.createElement('script');
                 elt.type = script.type;
                 if (script.data) {
                     elt.textContent = script.data;
-                    // alert(elt.textContent);
                 } else if (script.src) {
-                    // const oldBlob = this.fileMap[this.resolvePath(script.src)];
-                    // const type = script.type == 'module' ? 'text/javascript' : script.type;
-                    // const newBlob = new Blob([await oldBlob.text()], {type: script.type});
-                    // const url = URL.createObjectURL(newBlob);
-                    const url = 'data:text/javascript;base64,' + btoa(await this.fileMap[this.resolvePath(script.src)].text()) 
-                    elt.src = url;
-                    // alert(url + '\n\n' + await (await fetch(url)).text());
+                    elt.src = await this.getURL(script.src);
                 }
+                elt.setAttribute('data-wrecked-no-grab', 'true');
+                document.body.appendChild(elt);
+            } else if (script.type == 'importmap') {
+                const map = JSON.parse(script.data);
+                let imports = [];
+                for (const [key, value] of Object.entries(map.imports)) {
+                    imports.push([key, await this.getURL(value)]);
+                }
+                map.imports = Object.fromEntries(imports);
+                const elt = document.createElement('script');
+                elt.textContent = JSON.stringify(map);
+                elt.setAttribute('data-wrecked-no-grab', 'true');
+                elt.type = 'importmap';
+                // alert(elt.textContent);
                 document.body.appendChild(elt);
             }
         }
     },
     initialRun: async function() {
-        let imports = {};
-        for (const [key, value] of Object.entries(this.fileMap)) {
-            imports[key.slice(1)] = URL.createObjectURL(value);
-        }
         let i = 0;
-        this.runScript({
+        await this.runScript({
             action: 'run',
             type: 'importmap',
-            data: JSON.stringify({imports: imports}),
+            data: JSON.stringify({imports: Object.fromEntries(Object.keys(this.fileMap).map((k) => ['_wrecked' + k, k]))}),
         });
         for (const script of this.scripts) {
-            this.runScript(script);
+            await this.runScript(script);
         }
     },
     interceptScript: function(script) {
@@ -110,8 +166,12 @@ const wrecked = {
         const {mode, type, request, data} = event.data;
         if (mode == 'response') {
             if (type == 'filemap') {
+                // alert(`${Object.values(data).reduce((a, b) => a + b.size, 0)} bytes\n${JSON.stringify(data)}`);
                 wrecked.fileMap = data;
-                this.initialRun();
+                if (this.currentPath !== null) this.initialRun();
+            } else if (type == 'currentpath') {
+                wrecked.currentPath = data;
+                if (this.fileMap !== null) this.initialRun();
             }
         }
     },
@@ -123,7 +183,10 @@ const wrecked = {
         window.opener.postMessage({
             mode: 'request',
             type: 'filemap',
-            data: {},
+        }, '*');
+        window.opener.postMessage({
+            mode: 'request',
+            type: 'currentpath',
         }, '*');
     }
 }
@@ -136,17 +199,9 @@ async function require(path) {
 }
 
 wrecked.init();
-
+                        
         </script>
     </head>
     <body>
-        <script type="module" src="test2.js"></script>
-        <!-- <script type="module">
-
-const test = await require('./test.js');
-
-test('hi');
-
-        </script> -->
     </body>
 </html>
