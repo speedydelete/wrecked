@@ -149,7 +149,7 @@
 
     function interceptScript(script) {
         if (script.tagName && script.tagName == 'SCRIPT' && !script.getAttribute('data-wrecked-no-grab')) {
-            if ((/^\s+\/\/[^\n]*wrecked-no-grab=true/.test(script.textContent))) return;
+            if ((/^\s*\/\/[^\n]*wrecked-no-grab=true/.test(script.textContent))) return;
             console.log(script);
             let type = script.getAttribute('type');
             if (type.startsWith('wrecked/')) type = type.slice(8);
