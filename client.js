@@ -58,15 +58,13 @@
             let code = await fileMap[path].text();
             let match = importRegex.exec(code);
             while (match) {
-                let [full, main, specifier] = match;
-                if (specifier == 'three') {
-                    specifier = 'https://unpkg.com/three@0.170.0/build/three.module.js?module';
-                } else if (specifier.startsWith('three/addons/')) {
-                    specifier = 'https://unpkg.com/three@0.170.0/examples/jsm/' + specifier.slice('three/addons/'.length) + '?module';
+                let specifier = match[2];
+                if (!(/^\.?\.?\//.test(specifier))) {
+                    specifier = 'https://unpkg.com/' + specifier + '?module';
                 } else {
                     specifier = '_wrecked' + simplifyPath(specifier);
                 }
-                code = code.replace(full, main + '"' + specifier + '"; // wrecked-no-grab=true\n');
+                code = code.replace(match[0], match[1] + '"' + specifier + '"; // wrecked-no-grab=true\n');
                 match = importRegex.exec(code);
             }
             return new Response(code, {'status': 200, 'statusText': 'OK'});
@@ -97,11 +95,8 @@
     }
 
     async function initialRun() {
-        let i = 0;
-        await runScript({
-            type: 'importmap',
-            data: JSON.stringify({imports: Object.fromEntries(Object.keys(fileMap).map((k) => ['_wrecked' + k, k]))}),
-        });
+        const imports = Object.fromEntries(Object.keys(fileMap).map((k) => ['_wrecked' + k, k]));
+        await runScript({type: 'importmap', data: JSON.stringify({imports: imports})});
         for (const script of scripts) {
             await runScript(script);
         }
@@ -116,10 +111,7 @@
             src = script.getAttribute('src');
             if (src && src !== '<anonymous code>') {
                 if (window.location.protocol == 'file:') {
-                    scripts.push({
-                        type: type,
-                        src: src,
-                    });
+                    scripts.push({type: type, src: src});
                 } else {
                     fetch(script.src).then(function(resp) {
                         if (resp.ok) {
@@ -134,10 +126,7 @@
                 }  
             } else {
                 if (!(/^\s+\/\/[^\n]*wrecked-no-grab=true/.test(script.textContent))) return;
-                scripts.push({
-                    type: type,
-                    data: script.textContent,
-                });
+                scripts.push({type: type, data: script.textContent});
             }
         }
     }
@@ -157,7 +146,6 @@
             const {mode, type, request, data} = event.data;
             if (mode == 'response') {
                 if (type == 'filemap') {
-                    // alert(`${Object.values(data).reduce((a, b) => a + b.size, 0)} bytes\n${JSON.stringify(data)}`);
                     fileMap = data;
                     if (currentPath !== null) initialRun();
                 } else if (type == 'currentpath') {
@@ -182,4 +170,5 @@
         Function(`'use strict'; ${script}`).bind(out)();
         return out.module.exports;
     }
-})
+
+})();
