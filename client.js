@@ -5,7 +5,7 @@
 
     const showErrorsOnScreen = false;
 
-    const dataURIRegex = /data:([a-zA-Z0-9!#$&.+-^_]+\/[a-zA-Z0-9!#$&.+-^_]+)?(;[a-zA-Z0-9!#$&.+-^_]+)*;base64,[A-Za-z0-9+/]+={0,2}/g;
+    const dataURIRegex = /data:([a-zA-Z0-9!#$&.+-^_]+\/[a-zA-Z0-9!#$&.+-^_]+)?(;[a-zA-Z0-9!#$&.+-^_]+)*;base64,([A-Za-z0-9+/]+={0,2})/g;
     const importRegex = /^(?:(import(?:\s+\*\s+as\s+\w+|\s+\w+|\s*\{[^}]*\})\s+from\s+)["']([^"']+)["'];?)(?:\s*)(?!\/\/\s*wrecked-no-grab=true)\n/mg;
     const schemeRegex = /^[a-z][a-z\d+\-.]*:/;
     const pathSep = /(?<!\\)\//;
@@ -13,21 +13,39 @@
         '.js': 'javascript',
     };
 
-    if (showErrorsOnScreen) {
-        window.onerror = function(a, b, c, d, error) {
-            let text = error.stack.toString()
-            text = text.replace(dataURIRegex, '<data uri>');
+    function handleError(error) {
+        let stack = error.stack;
+        const matches = stack.matchAll(dataURIRegex);
+        for (const match of matches) {
+            const code = atob(match[3]);
+            if (code.startsWith('//wrecked-name=')) {
+                stack = stack.replaceAll(match[0], code.slice('//wrecked-name='.length, code.indexOf('\n')));
+            }
+        }
+        stack = stack.replace(dataURIRegex, '<data uri>');
+        if (showErrorsOnScreen) {
             if (document.readyState == 'complete') {
                 document.body.innerHTML = `<pre style="font-size:14px;color:red;padding-left:15px;"></pre>`;
-                document.querySelector('body pre').innerText = text;
+                document.querySelector('body pre').innerText = stack;
             } else {
-                alert(text);
+                alert(stack);
             }
             let lastInterval = setInterval(()=>{},0);
-            for (let i = 1; i <= lastInterval; i++) clearInterval(i)
+            for (let i = 1; i <= lastInterval; i++) clearInterval(i);
+        } else {
+            const out = new (error.constructor)(error.message);
+            out.stack = stack;
+            throw out;
         }
-        window.onunhandledrejection = function(error) {
-            onerror(null, null, null, null, {stack: error.reason.stack ? error.reason.stack : error.reason});
+    }
+
+    window.onerror = (a, b, c, d, error) => handleError(error);
+
+    window.onunhandledrejection = function(error) {
+        if (error instanceof Error) {
+            handleError(error);
+        } else {
+            handleError({constructor: Error, message: error.message, stack: ''});
         }
     }
 
@@ -137,7 +155,7 @@
                 if (script.src) {
                     const specifier = (/^\.?\.?\//.test(script.src) ? '_wrecked' : '.') + simplifyPath(script.src);
                     const patched = await patchScript(await loadScriptData(script));
-                    map[specifier] = 'data:text/javascript;base64,' + btoa(patched.data);
+                    map[specifier] = 'data:text/javascript;base64,' + btoa(`//wrecked-name=${script.src}\n` + patched.data);
                 }
             }
         }
@@ -152,7 +170,7 @@
             if ((/^\s*\/\/[^\n]*wrecked-no-grab=true/.test(script.textContent))) return;
             console.log(script);
             let type = script.getAttribute('type');
-            if (type.startsWith('wrecked/')) type = type.slice(8);
+            if (type !== null && type.startsWith('wrecked/')) type = type.slice(8);
             script.setAttribute('type', 'text/plain');
             script.parentNode.removeChild(script);
             script.setAttribute('data-wrecked-no-grab', 'true');
