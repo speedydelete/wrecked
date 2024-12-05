@@ -216,6 +216,7 @@ body > div:first-child {
 }
 
         </style>
+        <script src="https://unpkg.com/typescript@latest/lib/typescript.js"></script>
     </head>
     <body>
         <div>
@@ -405,6 +406,26 @@ window.addEventListener('message', async function(event) {
                 request: data,
                 data: currentClientPath.split(pathSep).slice(0, -1).join('/'),
             }, '*');
+        } else if (type == 'transpile_ts') {
+            let out;
+            try {
+                out = ts.transpile(data.code, data.options === undefined ? {} : data.options)
+            } catch (err) {
+                event.source.postMessage({
+                    mode: 'response',
+                    type: 'transpile_ts',
+                    request: data,
+                    data: err,
+                });
+            }
+            if (out !== undefined) {
+                event.source.postMessage({
+                    mode: 'response',
+                    type: 'transpile_ts',
+                    request: data,
+                    data: out,
+                }, '*');
+            }
         }
     }
 });
